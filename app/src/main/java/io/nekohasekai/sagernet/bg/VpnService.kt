@@ -126,10 +126,17 @@ class VpnService : BaseVpnService(),
         updateUnderlyingNetwork(builder)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(metered)
 
-        // app route
+// app route
         val packageName = packageName
-        val proxyApps = DataStore.proxyApps
-        var bypass = DataStore.bypass
+        
+        // --- ЗАКОММЕНТИРОВАНО (оригинальные настройки) ---
+        // val proxyApps = DataStore.proxyApps
+        // var bypass = DataStore.bypass
+        
+        // --- ДОБАВЛЕНО (жесткое включение режима "Проксировать выбранные") ---
+        val proxyApps = true
+        var bypass = false
+
         val workaroundSYSTEM = false /* DataStore.tunImplementation == TunImplementation.SYSTEM */
         val needBypassRootUid = workaroundSYSTEM || data.proxy!!.config.trafficMap.values.any {
             it[0].hysteriaBean?.protocol == HysteriaBean.PROTOCOL_FAKETCP
@@ -148,6 +155,9 @@ class VpnService : BaseVpnService(),
                     it.packageName
                 }
             }
+            
+            // --- ЗАКОММЕНТИРОВАНО (старая логика подтягивания списка из настроек) ---
+            /*
             if (proxyApps) {
                 individual.addAll(DataStore.individual.split('\n').filter { it.isNotBlank() })
                 if (bypass && needBypassRootUid) {
@@ -161,7 +171,16 @@ class VpnService : BaseVpnService(),
                 individual.addAll(allApps)
                 bypass = false
             }
+            */
 
+            // --- ДОБАВЛЕНО (жесткий список из 3 приложений) ---
+            individual.addAll(listOf(
+                "com.whatsapp",
+                "com.google.android.youtube",
+                "org.telegram.messenger"
+            ))
+            bypass = false // Принудительно отключаем режим обхода на всякий случай
+            
             val added = mutableListOf<String>()
 
             individual.apply {
