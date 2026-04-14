@@ -10,6 +10,14 @@ plugins {
 setupApp()
 
 android {
+    // Restrict ABI to arm64-v8a only for a smaller APK
+    defaultConfig {
+        ndk {
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
+        }
+        
+    }
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }

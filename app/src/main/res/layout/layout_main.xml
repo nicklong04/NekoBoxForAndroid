@@ -18,7 +18,6 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!-- We double trackThickness as half of it will be invisible -->
         <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/fabProgress"
             android:layout_width="wrap_content"
@@ -100,26 +99,4 @@
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-    <com.google.android.material.navigation.NavigationView
-        android:id="@+id/nav_view"
-        style="@style/Widget.Design.NavigationView"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        app:itemIconTint="@color/navigation_icon"
-        app:itemTextColor="@color/navigation_icon"
-        app:menu="@menu/main_drawer_menu" />
-
-    <com.google.android.material.navigation.NavigationView
-        android:id="@+id/nav_view_black"
-        style="@style/Widget.Design.NavigationView"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        app:itemIconTint="@color/navigation_icon"
-        app:itemShapeAppearance="@style/ShapeAppearance.MaterialComponents.MediumComponent"
-        app:itemShapeFillColor="@color/navigation_item"
-        app:itemTextColor="@color/navigation_icon"
-        app:menu="@menu/main_drawer_menu" />
-
-</androidx.drawerlayout.widget.DrawerLayout>
+    </androidx.drawerlayout.widget.DrawerLayout>

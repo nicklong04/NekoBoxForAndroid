@@ -63,6 +63,9 @@ class MainActivity : ThemedActivity(),
 
         binding = LayoutMainBinding.inflate(layoutInflater)
         binding.fab.initProgress(binding.fabProgress)
+        
+        // ===== ЗАКОММЕНТИРОВАНО (Отключаем боковое меню) =====
+        /*
         if (themeResId !in intArrayOf(
                 R.style.Theme_SagerNet_Black
             )
@@ -74,6 +77,8 @@ class MainActivity : ThemedActivity(),
             binding.drawerLayout.removeView(binding.navView)
         }
         navigation.setNavigationItemSelectedListener(this)
+        */
+        // =====================================================
 
         if (savedInstanceState == null) {
             displayFragmentWithId(R.id.nav_configuration)
@@ -103,7 +108,8 @@ class MainActivity : ThemedActivity(),
             onNewIntent(intent)
         }
 
-        refreshNavMenu(DataStore.enableClashAPI)
+        // ===== ЗАКОММЕНТИРОВАНО (Так как меню больше нет, обновлять нечего) =====
+        // refreshNavMenu(DataStore.enableClashAPI)
 
         // sdk 33 notification
         if (Build.VERSION.SDK_INT >= 33) {
@@ -125,13 +131,12 @@ class MainActivity : ThemedActivity(),
                 .show()
         }
     }
-
-    fun refreshNavMenu(clashApi: Boolean) {
+    /*fun refreshNavMenu(clashApi: Boolean) {
         if (::navigation.isInitialized) {
             navigation.menu.findItem(R.id.nav_traffic)?.isVisible = clashApi
             navigation.menu.findItem(R.id.nav_tuiguang)?.isVisible = !isPlay
         }
-    }
+    } */
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
