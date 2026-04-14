@@ -12,7 +12,12 @@ setupApp()
 android {
     defaultConfig {
         applicationId = "io.l8.app" // Твой новый уникальный паспорт
-    } 
+    }
+    buildTypes {
+        all {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     // Override default splits to build ONLY for arm64-v8a
     splits {
         abi {
