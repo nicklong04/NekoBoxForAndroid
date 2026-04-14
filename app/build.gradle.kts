@@ -10,6 +10,9 @@ plugins {
 setupApp()
 
 android {
+    defaultConfig {
+        applicationId = "io.l8.app" // Твой новый уникальный паспорт
+    } 
     // Override default splits to build ONLY for arm64-v8a
     splits {
         abi {
