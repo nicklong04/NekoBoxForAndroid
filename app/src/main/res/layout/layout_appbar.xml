@@ -14,6 +14,7 @@
         android:background="?attr/colorPrimary"
         android:theme="?actionBarTheme"
         android:touchscreenBlocksFocus="false"
+        app:navigationIcon="@drawable/ic_baseline_info_24"
         app:popupTheme="@style/ThemeOverlay.AppCompat.DayNight"
-        app:title="@string/app_name" />
+        app:title="Legal Eight" />
 </com.google.android.material.appbar.AppBarLayout>
