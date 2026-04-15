@@ -1,220 +1,87 @@
 package io.nekohasekai.sagernet.bg
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.ProxyInfo
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.os.PowerManager
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.fmt.LOCALHOST
-import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.ui.VpnRequestActivity
-import io.nekohasekai.sagernet.utils.Subnet
 import android.net.VpnService as BaseVpnService
 
-class VpnService : BaseVpnService(),
-    BaseService.Interface {
+class VpnService : BaseVpnService(), BaseService.Interface {
 
     companion object {
-
         const val PRIVATE_VLAN4_CLIENT = "172.19.0.1"
         const val PRIVATE_VLAN4_ROUTER = "172.19.0.2"
-        const val FAKEDNS_VLAN4_CLIENT = "198.18.0.0"
-        const val PRIVATE_VLAN6_CLIENT = "fdfe:dcba:9876::1"
-        const val PRIVATE_VLAN6_ROUTER = "fdfe:dcba:9876::2"
-
     }
 
     var conn: ParcelFileDescriptor? = null
-
     private var metered = false
 
-    override var upstreamInterfaceName: String? = null
-
-    override suspend fun startProcesses() {
+    override fun onCreate() {
+        super.onCreate()
         DataStore.vpnService = this
-        super.startProcesses() // launch proxy instance
     }
-
-    override var wakeLock: PowerManager.WakeLock? = null
-
-    @SuppressLint("WakelockTimeout")
-    override fun acquireWakeLock() {
-        wakeLock = SagerNet.power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "sagernet:vpn")
-            .apply { acquire() }
-    }
-
-    @Suppress("EXPERIMENTAL_API_USAGE")
-    override fun killProcesses() {
-        conn?.close()
-        conn = null
-        super.killProcesses()
-    }
-
-    override fun onBind(intent: Intent) = when (intent.action) {
-        SERVICE_INTERFACE -> super<BaseVpnService>.onBind(intent)
-        else -> super<BaseService.Interface>.onBind(intent)
-    }
-
-    override val data = BaseService.Data(this)
-    override val tag = "SagerNetVpnService"
-    override fun createNotification(profileName: String) =
-        ServiceNotification(this, profileName, "service-vpn")
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (DataStore.serviceMode == Key.MODE_VPN) {
-            if (prepare(this) != null) {
-                startActivity(
-                    Intent(
-                        this, VpnRequestActivity::class.java
-                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            } else return super<BaseService.Interface>.onStartCommand(intent, flags, startId)
+        if (intent == null) return START_NOT_STICKY
+
+        val action = intent.action
+        if (action == SagerNet.ACTION_SERVICE_STOP) {
+            SagerNet.stopService()
         }
-        stopRunner()
-        return Service.START_NOT_STICKY
+
+        return START_NOT_STICKY
     }
 
-    inner class NullConnectionException : NullPointerException(),
-        BaseService.ExpectedException {
-        override fun getLocalizedMessage() = getString(R.string.reboot_required)
-    }
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    fun setup(): Int {
+        val builder = Builder()
 
-    fun startVpn(tunOptionsJson: String, tunPlatformOptionsJson: String): Int {
-//        Logs.d(tunOptionsJson)
-//        Logs.d(tunPlatformOptionsJson)
-//        val tunOptions = JSONObject(tunOptionsJson)
+        // ЭТАП 3.1: Хардкод MTU (Консервативный и пуленепробиваемый)
+        builder.setMtu(1400)
 
-        // address & route & MTU ...... use NB4A GUI config
-        val builder = Builder().setConfigureIntent(SagerNet.configureIntent(this))
-            .setSession(getString(R.string.app_name))
-            .setMtu(DataStore.mtu)
-        val ipv6Mode = DataStore.ipv6Mode
-
-        // address
+        // ЭТАП 3.2: Только IPv4 (стабильная работа мобильных сетей)
         builder.addAddress(PRIVATE_VLAN4_CLIENT, 30)
-        if (ipv6Mode != IPv6Mode.DISABLE) {
-            builder.addAddress(PRIVATE_VLAN6_CLIENT, 126)
-        }
-        builder.addDnsServer(PRIVATE_VLAN4_ROUTER)
+        builder.addRoute("0.0.0.0", 0)
 
-        // route
-        if (DataStore.bypassLan) {
-            resources.getStringArray(R.array.bypass_private_route).forEach {
-                val subnet = Subnet.fromString(it)!!
-                builder.addRoute(subnet.address.hostAddress!!, subnet.prefixSize)
-            }
-            builder.addRoute(PRIVATE_VLAN4_ROUTER, 32)
-            builder.addRoute(FAKEDNS_VLAN4_CLIENT, 15)
-            // https://issuetracker.google.com/issues/149636790
-            if (ipv6Mode != IPv6Mode.DISABLE) {
-                builder.addRoute("2000::", 3)
-            }
-        } else {
-            builder.addRoute("0.0.0.0", 0)
-            if (ipv6Mode != IPv6Mode.DISABLE) {
-                builder.addRoute("::", 0)
+        // ЭТАП 3.3: DNS в туннеле
+        builder.addDnsServer("8.8.8.8")
+        builder.addDnsServer("1.1.1.1")
+
+        builder.setSession("Legal Eight")
+
+        // ЭТАП 3.4: Жесткая маршрутизация "Белой 8-ки" (Whitelist)
+        val l8Apps = listOf(
+            "com.google.android.youtube",
+            "org.telegram.messenger",
+            "com.instagram.android",
+            "com.whatsapp",
+            "com.twitter.android",
+            "com.openai.chatgpt",
+            "com.android.chrome",
+            "com.android.vending"
+        )
+
+        for (app in l8Apps) {
+            try {
+                packageManager.getPackageInfo(app, 0)
+                builder.addAllowedApplication(app)
+                Logs.d("Legal Eight Whitelist: Пакет $app направлен в туннель.")
+            } catch (e: PackageManager.NameNotFoundException) {
+                Logs.w("Legal Eight Whitelist: Пакет $app не установлен на устройстве.")
             }
         }
 
         updateUnderlyingNetwork(builder)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(metered)
 
-// app route
-        val packageName = packageName
-        
-        // --- ЗАКОММЕНТИРОВАНО (оригинальные настройки) ---
-        // val proxyApps = DataStore.proxyApps
-        // var bypass = DataStore.bypass
-        
-        // --- ДОБАВЛЕНО (жесткое включение режима "Проксировать выбранные") ---
-        val proxyApps = true
-        var bypass = false
-
-        val workaroundSYSTEM = false /* DataStore.tunImplementation == TunImplementation.SYSTEM */
-        val needBypassRootUid = workaroundSYSTEM || data.proxy!!.config.trafficMap.values.any {
-            it[0].hysteriaBean?.protocol == HysteriaBean.PROTOCOL_FAKETCP
+        if (Build.VERSION.SDK_INT >= 29) {
+            builder.setMetered(DataStore.meteredNetwork)
         }
 
-        if (proxyApps || needBypassRootUid) {
-            val individual = mutableSetOf<String>()
-            val allApps by lazy {
-                packageManager.getInstalledPackages(PackageManager.GET_PERMISSIONS).filter {
-                    when (it.packageName) {
-                        packageName -> false
-                        "android" -> true
-                        else -> it.requestedPermissions?.contains(Manifest.permission.INTERNET) == true
-                    }
-                }.map {
-                    it.packageName
-                }
-            }
-            
-            // --- ЗАКОММЕНТИРОВАНО (старая логика подтягивания списка из настроек) ---
-            /*
-            if (proxyApps) {
-                individual.addAll(DataStore.individual.split('\n').filter { it.isNotBlank() })
-                if (bypass && needBypassRootUid) {
-                    val individualNew = allApps.toMutableList()
-                    individualNew.removeAll(individual)
-                    individual.clear()
-                    individual.addAll(individualNew)
-                    bypass = false
-                }
-            } else {
-                individual.addAll(allApps)
-                bypass = false
-            }
-            */
-
-            // --- ДОБАВЛЕНО (жесткий список из 3 приложений) ---
-            individual.addAll(listOf(
-                "com.whatsapp",
-                "com.google.android.youtube",
-                "org.telegram.messenger"
-            ))
-            bypass = false // Принудительно отключаем режим обхода на всякий случай
-            
-            val added = mutableListOf<String>()
-
-            individual.apply {
-                // Allow Matsuri itself using VPN.
-                remove(packageName)
-                if (!bypass) add(packageName)
-            }.forEach {
-                try {
-                    if (bypass) {
-                        builder.addDisallowedApplication(it)
-                    } else {
-                        builder.addAllowedApplication(it)
-                    }
-                    added.add(it)
-                } catch (ex: PackageManager.NameNotFoundException) {
-                    Logs.w(ex)
-                }
-            }
-
-            if (bypass) {
-                Logs.d("Add bypass: ${added.joinToString(", ")}")
-            } else {
-                Logs.d("Add allow: ${added.joinToString(", ")}")
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy) {
-            builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOCALHOST, DataStore.mixedPort))
-        }
-
-        metered = DataStore.meteredNetwork
-        if (Build.VERSION.SDK_INT >= 29) builder.setMetered(metered)
         conn = builder.establish() ?: throw NullConnectionException()
-
         return conn!!.fd
     }
 
@@ -232,6 +99,6 @@ class VpnService : BaseVpnService(),
     override fun onDestroy() {
         DataStore.vpnService = null
         super.onDestroy()
-        data.binder.close()
+        conn?.close()
     }
 }
